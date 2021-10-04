@@ -1,0 +1,93 @@
+version: '3'
+services:
+
+  company-tails-server:
+    image: registry.hub.docker.com/mydigiid/company-tails-server:latest
+    container_name: company-tails-server
+    ports:
+      - 6543:6543
+    volumes:
+      - ~/ssibk/company-tails-server:/home/indy/.indy_client
+    environment:
+      - SSIBK_COMPANY_TAILS_SERVER_ADDRESS=0.0.0.0
+      - SSIBK_COMPANY_TAILS_SERVER_PORT=6543
+      - SSIBK_COMPANY_TAILS_SERVER_LOG_LEVEL=debug
+
+  company-agent:
+    image: registry.hub.docker.com/mydigiid/company-agent:latest
+    container_name: company-agent
+    ports:
+      - 11080:11080
+      - 11000:11000
+    volumes:
+      - ~/ssibk/.indy_client_company:/home/indy/.indy_client
+    depends_on:
+      - company-tails-server
+    environment:
+      - SSIBK_COMPANY_AGENT_IP_ADDRESS=${IP_ADDRESS}
+      - SSIBK_COMPANY_AGENT_PORT_INBOUND=11000
+      - SSIBK_COMPANY_AGENT_PORT_ADMIN=11080
+      - SSIBK_COMPANY_AGENT_WEBHOOK_IP_ADDRESS=${IP_ADDRESS}
+      - SSIBK_COMPANY_AGENT_WEBHOOK_PORT=8080
+      - SSIBK_COMPANY_AGENT_WEBHOOK_APIKEY=${COMPANY_AGENT_WEBHOOK_APIKEY}
+      - SSIBK_COMPANY_AGENT_API_KEY=${COMPANY_AGENT_API_KEY}
+      - SSIBK_COMPANY_AGENT_SEED=000000000000000000000000000yyyyy
+      - SSIBK_COMPANY_AGENT_WALLET_KEY=${COMPANY_AGENT_WALLET_KEY}
+      - SSIBK_COMPANY_AGENT_WALLET_NAME=wallet
+      - SSIBK_COMPANY_AGENT_NAME=IBM-Deutschland
+      - SSIBK_COMPANY_AGENT_LOG_LEVEL=info
+      - SSIBK_COMPANY_AGENT_GENESIS_URL=${COMPANY_AGENT_GENESIS_URL}
+      - SSIBK_COMPANY_AGENT_TAILS_SERVER_IP_ADDRESS=${IP_ADDRESS}
+      - SSIBK_COMPANY_AGENT_TAILS_SERVER_PORT=6543
+      - SSIBK_COMPANY_SCHEMA_ID=${COMPANY_SCHEMA_ID}
+      - SSIBK_COMPANY_AGENT_CREDENTIAL_NAME=Arbeitgeberbescheinigung
+
+  company-db:
+    image: registry.hub.docker.com/mydigiid/company-db:latest
+    container_name: company-db
+    ports:
+      - 27017:27017
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGODB-USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGODB-PASSWORD}
+      - MONGO_INITDB_DATABASE=CompanyController
+      - CONTROLLER_DB_USERNAME=${CONTROLLER_DB_USERNAME}
+      - CONTROLLER_DB_PASSWORD=${CONTROLLER_DB_PASSWORD}
+    volumes:
+      - ~/ssibk/company-db/:/data/db/
+
+  company-controller:
+    image: registry.hub.docker.com/mydigiid/company-controller:latest
+    container_name: company-controller
+    ports:
+      - 8080:8080
+    depends_on:
+      - company-db
+      - company-agent
+    volumes:
+      - ~/ssibk/invitation-email.html:/var/ssibk/invitation-email-template.html
+    environment:
+      - SSIBK_COMPANY_CONTROLLER_APIKEY=${COMPANY_CONTROLLER_APIKEY}
+      - SSIBK_COMPANY_CONTROLLER_APIKEYHEADER=${COMPANY_CONTROLLER_APIKEYHEADER}
+      - SSIBK_COMPANY_CONTROLLER_ADMIN_USERNAME=${COMPANY_CONTROLLER_ADMIN_USERNAME}
+      - SSIBK_COMPANY_CONTROLLER_ADMIN_PASSWORD=${COMPANY_CONTROLLER_ADMIN_PASSWORD}
+      - SSIBK_COMPANY_CONTROLLER_AGENT_APIURL=http://${IP_ADDRESS}:11080
+      - SSIBK_COMPANY_CONTROLLER_AGENT_APIKEY=${COMPANY_CONTROLLER_AGENT_APIKEY}
+      - SSIBK_COMPANY_CONTROLLER_AGENT_IMAGEURL=https://upload.wikimedia.org/wikipedia/commons/thumb/5/51/IBM_logo.svg/800px-IBM_logo.svg.png
+      - SSIBK_COMPANY_CONTROLLER_AGENT_CREDENTIAL_DEFINITION_ID=${COMPANY_CONTROLLER_AGENT_CREDENTIAL_DEFINITION_ID}
+      - SSIBK_COMPANY_CONTROLLER_INVITATION_EMAIL_SUBJECT=Herzlich Willkommen beim Onboarding für das Pilotvorhaben
+      - SPRING_DATA_MONGODB_URI=mongodb://${MONGODB-USERNAME}:${MONGODB-PASSWORD}@${IP_ADDRESS}:27017/?authSource=CompanyController
+      - SPRING_DATA_MONGODB_DATABASE=CompanyController
+
+  company-ui:
+    image: registry.hub.docker.com/mydigiid/company-ui:latest
+    container_name: company-ui
+    ports:
+      - 3000:80
+    depends_on:
+      - company-controller
+    environment:
+      - SSIBK_COMPANY_UI_CONTROLLER_APIURL=http://${IP_ADDRESS}:8080
+      - SSIBK_COMPANY_UI_COMPANY_NAME=IBM Deutschland GmbH
+      - SSIBK_COMPANY_UI_LOGO_URL=https://upload.wikimedia.org/wikipedia/commons/thumb/5/51/IBM_logo.svg/1000px-IBM_logo.svg.png
+      - SSIBK_COMPANY_UI_TITLE=SSI Management
